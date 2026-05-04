@@ -1,0 +1,59 @@
+name: Enviar notificaciones por correo
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar horario (no enviar entre 23:00 y 7:00)
+        id: horario
+        run: |
+          export TZ='Europe/Madrid'
+          HORA=$(date +%H)
+          echo "⏰ Hora actual: ${HORA}:00"
+          
+          if [ $HORA -ge 23 ] || [ $HORA -lt 7 ]; then
+            echo "es_nocturno=true" >> $GITHUB_OUTPUT
+            echo "🔕 Horario nocturno. No se enviarán notificaciones."
+          else
+            echo "es_nocturno=false" >> $GITHUB_OUTPUT
+            echo "🔔 Horario diurno. Enviando notificaciones..."
+          fi
+          
+      - name: Obtener emails activos del Gist
+        if: steps.horario.outputs.es_nocturno == 'false'
+        id: emails
+        env:
+          GIST_ID: ${{ secrets.GIST_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EMAILS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/gists/$GIST_ID | \
+            jq -r '.files["emails.json"].content // "[]"' | \
+            jq -r '.[] | if type == "object" then if .activo == true then .email else empty end else . end' | \
+            tr '\n' ',')
+          echo "to=$EMAILS" >> $GITHUB_OUTPUT
+          echo "📧 Correos activos: $EMAILS"
+
+      - name: Enviar correo
+        if: steps.horario.outputs.es_nocturno == 'false' && steps.emails.outputs.to != ''
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: 📝 Nueva nota en el bloc
+          to: ${{ steps.emails.outputs.to }}
+          from: Bloc Notas <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            Alguien ha actualizado las notas del bloc.
+            
+            Revisa los cambios en:
+            ${{ github.event.repository.html_url }}
+            
+            ---
+            Para activar/desactivar las notificaciones, accede al panel de configuración.
