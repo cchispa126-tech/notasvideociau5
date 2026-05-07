@@ -9,23 +9,7 @@ jobs:
   enviar:
     runs-on: ubuntu-latest
     steps:
-      - name: Verificar horario
-        id: horario
-        run: |
-          export TZ='Europe/Madrid'
-          HORA=$(date +%H)
-          echo "⏰ Hora actual: ${HORA}:00"
-          
-          if [ $HORA -ge 23 ] || [ $HORA -lt 7 ]; then
-            echo "es_nocturno=true" >> $GITHUB_OUTPUT
-            echo "🔕 Horario nocturno. No se enviarán notificaciones."
-          else
-            echo "es_nocturno=false" >> $GITHUB_OUTPUT
-            echo "🔔 Horario diurno. Enviando notificaciones..."
-          fi
-          
       - name: Enviar correo a la cuenta con 2FA
-        if: steps.horario.outputs.es_nocturno == 'false'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
