@@ -1,47 +1,24 @@
-
-name: Enviar notificaciones por correo
+name: Enviar notificaciones por correo - PRUEBA
 
 on:
   push:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   enviar:
     runs-on: ubuntu-latest
     steps:
-      - name: Obtener emails activos del Gist
-        id: emails
-        env:
-          GIST_ID: ${{ secrets.GIST_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Obtener emails activos (formato objeto { email, activo } o string simple)
-          EMAILS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            https://api.github.com/gists/$GIST_ID | \
-            jq -r '.files["emails.json"].content // "[]"' | \
-            jq -r 'if . | type == "array" and length > 0 then
-                      (map(if type == "object" then
-                             if .activo == true then .email else empty end
-                           elif type == "string" then .
-                           else empty end) | join(","))
-                    else "" end')
-          echo "to=$EMAILS" >> $GITHUB_OUTPUT
-          echo "📧 Correos activos: $EMAILS"
-
-      - name: Enviar correo
-        if: steps.emails.outputs.to != ''
+      - name: Enviar correo directamente
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: 📝 Nueva nota en el bloc
-          to: ${{ steps.emails.outputs.to }}
+          subject: "📝 Nueva nota en el bloc"
+          to: ${{ secrets.MAIL_USERNAME }}
           from: Bloc Notas <${{ secrets.MAIL_USERNAME }}>
           body: |
             Alguien ha actualizado las notas del bloc.
-            
-            Revisa los cambios en:
-            https://cchispa126-tech.github.io/
-            
+            Revisa: ${{ github.event.repository.html_url }}
