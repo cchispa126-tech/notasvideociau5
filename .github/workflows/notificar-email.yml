@@ -17,9 +17,13 @@ jobs:
           EMAILS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
             https://api.github.com/gists/$GIST_ID | \
             jq -r '.files["emails.json"].content // "[]"' | \
-            jq -r 'join(",")')
+            jq -r 'if . | type == "array" and length > 0 then 
+                    if .[0] | type == "string" then join(",")
+                    elif .[0] | type == "object" then map(select(.activo != false).email) | join(",")
+                    else "" end
+                    else "" end')
           echo "to=$EMAILS" >> $GITHUB_OUTPUT
-          echo "📧 Correos: $EMAILS"
+          echo "Correos encontrados: $EMAILS"
 
       - name: Enviar correo
         if: steps.emails.outputs.to != ''
@@ -37,4 +41,3 @@ jobs:
             
             Revisa los cambios en:
             https://cchispa126-tech.github.io/
-            
