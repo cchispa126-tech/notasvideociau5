@@ -2,6 +2,8 @@ name: Enviar notificaciones por correo
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main, master ]
 
 jobs:
   enviar:
@@ -11,11 +13,12 @@ jobs:
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
-          server_port: 465
+          server_port: 587
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "📝 Prueba de notificación"
           to: ${{ secrets.MAIL_USERNAME }}
           from: Bloc Notas <${{ secrets.MAIL_USERNAME }}>
           body: |
-            Esto es una prueba. Si recibes esto, funciona.
+            Esto es una prueba con puerto 587.
+            Si recibes esto, el envío funciona.
