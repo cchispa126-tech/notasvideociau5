@@ -1,24 +1,36 @@
-name: Enviar notificaciones por correo
+name: Notificar a tu equipo sobre cambios en tu Bloc de Notas
 
 on:
-  workflow_dispatch:
   push:
     branches: [ main, master ]
+    paths:
+      - 'index.html'
+  workflow_dispatch:
+
+permissions:
+  issues: write
 
 jobs:
-  enviar:
+  notificar:
     runs-on: ubuntu-latest
     steps:
-      - name: Enviar correo
-        uses: dawidd6/action-send-mail@v3
+      - name: Crear aviso en GitHub
+        uses: actions/github-script@v7
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "📝 Prueba de notificación"
-          to: ${{ secrets.MAIL_USERNAME }}
-          from: Bloc Notas <${{ secrets.MAIL_USERNAME }}>
-          body: |
-            Esto es una prueba con puerto 587.
-            Si recibes esto, el envío funciona.
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `📝 Notificar a tu equipo sobre cambios en tu Bloc de Notas`,
+              body: `## Se ha detectado una nueva nota en el bloc.
+
+**Autor:** ${{ github.actor }}
+**Repositorio:** ${context.repo.owner}/${context.repo.repo}
+**Fecha:** ${new Date().toLocaleString()}
+
+🔗 [Ver cambios en GitHub](${{ github.event.repository.html_url }}/commit/${{ github.sha }})
+
+---
+*Este aviso se genera automáticamente.*`,
+              labels: ['bloc-notas', 'automatico']
+            });
