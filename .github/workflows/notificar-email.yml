@@ -1,36 +1,78 @@
-name: Notificar a tu equipo sobre cambios en tu Bloc de Notas
+name: Monitorear cambios en el bloc
 
 on:
-  push:
-    branches: [ main, master ]
-    paths:
-      - 'index.html'
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
   issues: write
+  contents: write  # Para poder guardar el archivo de estado
 
 jobs:
-  notificar:
+  monitoreo:
     runs-on: ubuntu-latest
     steps:
-      - name: Crear aviso en GitHub
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Obtener estado actual del Gist
+        env:
+          GIST_ID: ${{ secrets.GIST_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Crear carpeta para estado si no existe
+          mkdir -p .estado
+          
+          # Obtener última fecha de modificación del Gist
+          curl -s -H "Authorization: token $GH_TOKEN" \
+            https://api.github.com/gists/$GIST_ID | \
+            jq -r '.updated_at' > .estado/ultima_fecha_gist.txt
+
+      - name: Leer fecha anterior (si existe)
+        id: comparar
+        run: |
+          if [ -f .estado/fecha_anterior.txt ]; then
+            ANTERIOR=$(cat .estado/fecha_anterior.txt)
+            ACTUAL=$(cat .estado/ultima_fecha_gist.txt)
+            if [ "$ANTERIOR" != "$ACTUAL" ]; then
+              echo "cambiado=true" >> $GITHUB_OUTPUT
+              echo "📢 El Gist ha cambiado"
+            else
+              echo "cambiado=false" >> $GITHUB_OUTPUT
+              echo "✅ Sin cambios"
+            fi
+          else
+            echo "cambiado=true" >> $GITHUB_OUTPUT
+            echo "📢 Primera ejecución"
+          fi
+
+      - name: Crear issue de notificación
+        if: steps.comparar.outputs.cambiado == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `📝 Notificar a tu equipo sobre cambios en tu Bloc de Notas`,
-              body: `## Se ha detectado una nueva nota en el bloc.
+              title: '📝 Nueva nota en el bloc',
+              body: `## Se ha detectado una nueva nota
 
-**Autor:** ${{ github.actor }}
-**Repositorio:** ${context.repo.owner}/${context.repo.repo}
-**Fecha:** ${new Date().toLocaleString()}
-
-🔗 [Ver cambios en GitHub](${{ github.event.repository.html_url }}/commit/${{ github.sha }})
+**📅 Fecha:** ${new Date().toLocaleString()}
+**🔗 Ver cambios:** https://gist.github.com/${{ secrets.GIST_ID }}
 
 ---
-*Este aviso se genera automáticamente.*`,
-              labels: ['bloc-notas', 'automatico']
+*Este aviso se genera automáticamente.*
+`,
+              labels: ['bloc-notas']
             });
+
+      - name: Guardar fecha actual como "anterior"
+        run: |
+          cp .estado/ultima_fecha_gist.txt .estado/fecha_anterior.txt
+
+      - name: Subir archivos de estado al repositorio
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Actualizar estado del monitoreo"
+          file_pattern: ".estado/*"
